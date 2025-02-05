@@ -35,6 +35,7 @@ options.add_argument('--disable-extensions')
 # Для удалённого запуска (например, через Selenium Grid)
 server = 'http://localhost:4444'
 driver = webdriver.Remote(command_executor=server, options=options)
+driver.set_page_load_timeout(30)  # время в секундах
 
 # Загружаем номер последней обработанной страницы (если файл существует)
 if os.path.exists(PROGRESS_FILE):
