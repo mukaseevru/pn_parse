@@ -14,8 +14,8 @@ from selenium.common.exceptions import TimeoutException
 
 # Основные настройки
 BASE_URL = "https://pamyat-naroda.ru/heroes/"
-DATA_FILE = "heroes_data.xlsx"
-PROGRESS_FILE = "progress.txt"
+DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'heroes_data.xlsx')
+PROGRESS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'progress.txt')
 
 # Настройка опций Chrome
 options = webdriver.ChromeOptions()

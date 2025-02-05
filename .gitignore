@@ -170,4 +170,5 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-heroes_data.xlsx
+data/heroes_data.xlsx
+data/progress.txt
