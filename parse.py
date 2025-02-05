@@ -64,7 +64,7 @@ def reinitialize_driver():
 
 # Функция для загрузки URL с ожиданием появления нужного элемента.
 # При неудаче (например, TimeoutException) происходит повторная инициализация драйвера и повтор загрузки.
-def load_url(url, expected_locator=None, timeout=30, retry=3):
+def load_url(url, expected_locator=None, timeout=30, retry=5):
     for attempt in range(retry):
         try:
             driver.get(url)
