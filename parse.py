@@ -3,8 +3,8 @@ from selenium.webdriver.common.by import By
 # from selenium.webdriver.support.wait import WebDriverWait
 # from selenium.webdriver.support import expected_conditions as ec
 # from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+# from selenium.webdriver.chrome.service import Service
+# from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
 import time
 
@@ -21,9 +21,15 @@ options.add_argument('--start-maximized')
 options.add_argument('--disable-infobars')
 options.add_argument('--disable-extensions')
 
-# service = Service("chromedriver")
-# driver = webdriver.Chrome(service=service, options=chrome_options)
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+# For unix
+# driver = webdriver.Chrome(service=Service(executable_path='/usr/bin/chromedriver'), options=options)
+
+# For macOS
+# driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
+# For remote
+server = 'http://localhost:4444'
+driver = webdriver.Remote(command_executor=server, options=options)
 
 # Функция для загрузки и парсинга страницы списка героев
 def get_hero_links(page):
@@ -95,7 +101,7 @@ def parse_hero_page(url):
 # Главный процесс парсинга
 all_data = []
 
-for page in range(1, 3647):  # 3647
+for page in range(1, 5):  # 3647
     print(f"Парсинг страницы {page}...")
     hero_links = get_hero_links(page)
 
@@ -112,4 +118,3 @@ for page in range(1, 3647):  # 3647
     print("Данные сохранены в heroes_data.xlsx")
 
 driver.quit()
-
