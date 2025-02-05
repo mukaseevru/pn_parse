@@ -101,7 +101,7 @@ def parse_hero_page(url):
 # Главный процесс парсинга
 all_data = []
 
-for page in range(1, 5):  # 3647
+for page in range(1, 3647):  # 3647
     print(f"Парсинг страницы {page}...")
     hero_links = get_hero_links(page)
 
