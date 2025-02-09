@@ -17,6 +17,7 @@ BASE_URL = "https://pamyat-naroda.ru/heroes/"
 DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'heroes_data.xlsx')
 DATA_FILE_UNIQUE = os.path.join(os.path.dirname(__file__), 'data', 'heroes_data_unique.xlsx')
 PROGRESS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'progress.txt')
+FAILED_LINKS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'failed_hero_links.txt')
 
 # Настройка опций Chrome
 options = webdriver.ChromeOptions()
@@ -29,7 +30,6 @@ options.add_argument('--start-maximized')
 options.add_argument('--disable-infobars')
 options.add_argument('--disable-extensions')
 
-
 # Для удалённого запуска (например, через Selenium Grid)
 server = 'http://localhost:4444'  # адрес Selenium Grid
 
@@ -38,9 +38,9 @@ server = 'http://localhost:4444'  # адрес Selenium Grid
 def initialize_driver():
     global driver
     driver = webdriver.Remote(command_executor=server, options=options)
-    # For unix
+    # For unix:
     # driver = webdriver.Chrome(service=Service(executable_path='/usr/bin/chromedriver'), options=options)
-    # For macOS
+    # For macOS:
     # driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     # Устанавливаем увеличенный таймаут загрузки страницы
     driver.set_page_load_timeout(30)
@@ -97,7 +97,14 @@ if os.path.exists(DATA_FILE):
     all_data = pd.read_excel(DATA_FILE).to_dict(orient="records")
 else:
     all_data = []
-df_loaded = pd.DataFrame(all_data)
+
+
+# Используем текущий список all_data для проверки уникальности
+def hero_already_in_data(short_url):
+    for hero in all_data:
+        if hero.get("Ссылка") == short_url:
+            return True
+    return False
 
 
 # Функция для получения ссылок на страницы героев с указанной страницы списка
@@ -136,6 +143,9 @@ def parse_hero_page(url):
     # Ожидаем появления элемента с именем героя
     if not load_url(url, expected_locator=(By.CLASS_NAME, "hero-card-panel-head__name"), timeout=30, retry=5):
         print(f"Пропускаем страницу героя {url} из-за ошибки загрузки.")
+        # Запоминаем ссылку, которую не удалось загрузить
+        with open(FAILED_LINKS_FILE, "a") as f:
+            f.write(url + "\n")
         return {}
 
     short_url = url.split("?")[0]
@@ -190,6 +200,44 @@ def parse_hero_page(url):
     return data
 
 
+# Функция для повторной обработки неудачных ссылок
+def attempt_failed_links():
+    if not os.path.exists(FAILED_LINKS_FILE):
+        print("Файл неудачных ссылок не найден. Нет ссылок для повторной обработки.")
+        return
+
+    with open(FAILED_LINKS_FILE, "r") as f:
+        failed_urls = [line.strip() for line in f if line.strip()]
+
+    if not failed_urls:
+        print("Нет неудачных ссылок для повторной обработки.")
+        return
+
+    print("\nНачинается повторная попытка обработки неудачных ссылок.")
+    remaining_failed_urls = []
+    for url in failed_urls:
+        short_url = url.split("?")[0]
+        # Проверяем, если герой уже есть в all_data, пропускаем
+        if hero_already_in_data(short_url):
+            continue
+        print(f"\nПовторная обработка героя {url}")
+        hero_data = parse_hero_page(url)
+        if hero_data:
+            all_data.append(hero_data)
+        else:
+            remaining_failed_urls.append(url)
+
+    # Обновляем файл неудачных ссылок
+    if remaining_failed_urls:
+        with open(FAILED_LINKS_FILE, "w") as f:
+            for url in remaining_failed_urls:
+                f.write(url + "\n")
+        print(f"После повторной попытки осталось неудачных ссылок: {len(remaining_failed_urls)}")
+    else:
+        os.remove(FAILED_LINKS_FILE)
+        print("Все неудачные ссылки обработаны успешно.")
+
+
 TOTAL_PAGES = 3647  # общее число страниц
 
 # Основной цикл парсинга
@@ -198,8 +246,9 @@ for page in range(start_page, TOTAL_PAGES + 1):
     hero_links = get_hero_links(page)
 
     for hero_url in hero_links:
-        if df_loaded[df_loaded['Ссылка'] == hero_url.split("?")[0]].shape[0]:
-            # print(f"\nГерой уже добавлен {hero_url}")
+        short_url = hero_url.split("?")[0]
+        # Проверяем, если герой уже добавлен, пропускаем его (сравнение по короткой версии ссылки)
+        if hero_already_in_data(short_url):
             continue
         else:
             print(f"\nОбработка нового героя {hero_url}")
@@ -207,7 +256,7 @@ for page in range(start_page, TOTAL_PAGES + 1):
             if hero_data:
                 all_data.append(hero_data)
 
-    # Сохраняем номер последней обработанной страницы
+    # Обновляем номер последней обработанной страницы (малозатратная операция)
     with open(PROGRESS_FILE, "w") as pf:
         pf.write(str(page))
 
@@ -223,5 +272,15 @@ for page in range(start_page, TOTAL_PAGES + 1):
 
     # Небольшая задержка между страницами
     time.sleep(1)
+
+# Повторная попытка обработки неудачных ссылок
+attempt_failed_links()
+
+# После повторной попытки сохраняем обновленные данные
+df = pd.DataFrame(all_data)
+df.to_excel(DATA_FILE, index=False)
+df_unique = df.drop_duplicates()
+df_unique.to_excel(DATA_FILE_UNIQUE, index=False)
+print("Обработка неудачных ссылок завершена. Данные обновлены.")
 
 driver.quit()
