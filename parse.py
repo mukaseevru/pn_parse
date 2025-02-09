@@ -199,7 +199,7 @@ for page in range(start_page, TOTAL_PAGES + 1):
 
     for hero_url in hero_links:
         if df_loaded[df_loaded['Ссылка'] == hero_url.split("?")[0]].shape[0]:
-            print(f"\nГерой уже добавлен {hero_url}")
+            # print(f"\nГерой уже добавлен {hero_url}")
             continue
         else:
             print(f"\nОбработка нового героя {hero_url}")
@@ -211,12 +211,15 @@ for page in range(start_page, TOTAL_PAGES + 1):
     with open(PROGRESS_FILE, "w") as pf:
         pf.write(str(page))
 
-    # Сохраняем накопленные данные в Excel
-    df = pd.DataFrame(all_data)
-    df.to_excel(DATA_FILE, index=False)
-    df_unique = df.drop_duplicates()
-    df_unique.to_excel(DATA_FILE_UNIQUE, index=False)
-    print(f"Страница {page} обработана. Данные сохранены в {DATA_FILE}")
+    # Сохраняем накопленные данные только каждые 100 страниц или если это последняя страница
+    if page % 100 == 0 or page == TOTAL_PAGES:
+        df = pd.DataFrame(all_data)
+        df.to_excel(DATA_FILE, index=False)
+        df_unique = df.drop_duplicates()
+        df_unique.to_excel(DATA_FILE_UNIQUE, index=False)
+        print(f"Страница {page} обработана. Данные сохранены в {DATA_FILE}")
+    else:
+        print(f"Страница {page} обработана.")
 
     # Небольшая задержка между страницами
     time.sleep(1)
