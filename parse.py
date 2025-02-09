@@ -28,11 +28,6 @@ options.add_argument('--start-maximized')
 options.add_argument('--disable-infobars')
 options.add_argument('--disable-extensions')
 
-# For unix
-# driver = webdriver.Chrome(service=Service(executable_path='/usr/bin/chromedriver'), options=options)
-
-# For macOS
-# driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 # Для удалённого запуска (например, через Selenium Grid)
 server = 'http://localhost:4444'  # адрес Selenium Grid
@@ -42,6 +37,10 @@ server = 'http://localhost:4444'  # адрес Selenium Grid
 def initialize_driver():
     global driver
     driver = webdriver.Remote(command_executor=server, options=options)
+    # For unix
+    # driver = webdriver.Chrome(service=Service(executable_path='/usr/bin/chromedriver'), options=options)
+    # For macOS
+    # driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     # Устанавливаем увеличенный таймаут загрузки страницы
     driver.set_page_load_timeout(30)
     return driver
@@ -97,6 +96,7 @@ if os.path.exists(DATA_FILE):
     all_data = pd.read_excel(DATA_FILE).to_dict(orient="records")
 else:
     all_data = []
+df_loaded = pd.DataFrame(all_data)
 
 
 # Функция для получения ссылок на страницы героев с указанной страницы списка
@@ -114,7 +114,7 @@ def get_hero_links(page):
     )
 
     # Ожидаем, что на странице появятся ссылки на героев
-    if not load_url(url, expected_locator=(By.XPATH, "//a[contains(@href, 'person-hero')]"), timeout=30, retry=3):
+    if not load_url(url, expected_locator=(By.XPATH, "//a[contains(@href, 'person-hero')]"), timeout=30, retry=5):
         return []
 
     hero_links = []
@@ -133,7 +133,7 @@ def get_hero_links(page):
 # Функция для парсинга страницы конкретного героя
 def parse_hero_page(url):
     # Ожидаем появления элемента с именем героя
-    if not load_url(url, expected_locator=(By.CLASS_NAME, "hero-card-panel-head__name"), timeout=30, retry=3):
+    if not load_url(url, expected_locator=(By.CLASS_NAME, "hero-card-panel-head__name"), timeout=30, retry=5):
         print(f"Пропускаем страницу героя {url} из-за ошибки загрузки.")
         return {}
 
@@ -197,9 +197,14 @@ for page in range(start_page, TOTAL_PAGES + 1):
     hero_links = get_hero_links(page)
 
     for hero_url in hero_links:
-        hero_data = parse_hero_page(hero_url)
-        if hero_data:
-            all_data.append(hero_data)
+        if df_loaded[df_loaded['Ссылка'] == hero_url.split("?")[0]].shape[0]:
+            # print(f"\nГерой уже добавлен {hero_url}")
+            continue
+        else:
+            print(f"\nОбработка нового героя {hero_url}")
+            hero_data = parse_hero_page(hero_url)
+            if hero_data:
+                all_data.append(hero_data)
 
     # Сохраняем номер последней обработанной страницы
     with open(PROGRESS_FILE, "w") as pf:
@@ -208,6 +213,8 @@ for page in range(start_page, TOTAL_PAGES + 1):
     # Сохраняем накопленные данные в Excel
     df = pd.DataFrame(all_data)
     df.to_excel(DATA_FILE, index=False)
+    df_unique = df.drop_duplicates()
+    df_unique.to_excel(os.path.join(os.path.dirname(__file__), 'data', 'heroes_data_unique.xlsx'), index=False)
     print(f"Страница {page} обработана. Данные сохранены в {DATA_FILE}")
 
     # Небольшая задержка между страницами
