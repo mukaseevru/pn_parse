@@ -15,6 +15,7 @@ from selenium.common.exceptions import TimeoutException
 # Основные настройки
 BASE_URL = "https://pamyat-naroda.ru/heroes/"
 DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'heroes_data.xlsx')
+DATA_FILE_UNIQUE = os.path.join(os.path.dirname(__file__), 'data', 'heroes_data_unique.xlsx')
 PROGRESS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'progress.txt')
 
 # Настройка опций Chrome
@@ -198,7 +199,7 @@ for page in range(start_page, TOTAL_PAGES + 1):
 
     for hero_url in hero_links:
         if df_loaded[df_loaded['Ссылка'] == hero_url.split("?")[0]].shape[0]:
-            # print(f"\nГерой уже добавлен {hero_url}")
+            print(f"\nГерой уже добавлен {hero_url}")
             continue
         else:
             print(f"\nОбработка нового героя {hero_url}")
@@ -214,7 +215,7 @@ for page in range(start_page, TOTAL_PAGES + 1):
     df = pd.DataFrame(all_data)
     df.to_excel(DATA_FILE, index=False)
     df_unique = df.drop_duplicates()
-    df_unique.to_excel(os.path.join(os.path.dirname(__file__), 'data', 'heroes_data_unique.xlsx'), index=False)
+    df_unique.to_excel(DATA_FILE_UNIQUE, index=False)
     print(f"Страница {page} обработана. Данные сохранены в {DATA_FILE}")
 
     # Небольшая задержка между страницами
