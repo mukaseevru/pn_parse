@@ -139,10 +139,8 @@ def get_hero_links(page):
 
 # Функция для парсинга страницы конкретного героя
 def parse_hero_page(url):
-    # Ожидаем появления элемента с именем героя
     if not load_url(url, expected_locator=(By.CLASS_NAME, "hero-card-panel-head__name"), timeout=30, retry=5):
         print(f"Пропускаем страницу героя {url} из-за ошибки загрузки.")
-        # Запоминаем ссылку, которую не удалось загрузить
         with open(FAILED_LINKS_FILE, "a") as f:
             f.write(url + "\n")
         return {}
@@ -158,9 +156,19 @@ def parse_hero_page(url):
         "Воинская часть": "",
         "Награды": "",
         "Место выбытия": "",
+        "Дата выбытия": "",
+        "Причина выбытия": "",
         "Место захоронения": "",
+        "Место пленения": "",
+        "Лагерь": "",
+        "Лагерный номер": "",
+        "Дата пленения": "",
         "Биография": "",
-        "Ссылка": short_url
+        "Источник информации": "",
+        "Фонд ист. информации": "",
+        "Опись ист. информации": "",
+        "Дело ист. информации": "",
+        "Ссылка": url.split("?")[0]
     }
 
     try:
@@ -168,35 +176,54 @@ def parse_hero_page(url):
     except Exception as e:
         print(f"Ошибка получения ФИО на {url}: {e}")
 
+    # Парсим основной блок информации
     try:
-        details = driver.find_elements(By.XPATH, "//dl[@class='heroes_person_details_list']/dt")
-        for detail in details:
-            try:
-                key = detail.text.strip()
-                value = detail.find_element(By.XPATH, "following-sibling::dd").text.strip()
-                if "Дата рождения" in key:
-                    data["Дата рождения"] = value
-                elif "Место рождения" in key:
-                    data["Место рождения"] = value
-                elif "Дата призыва" in key:
-                    data["Дата призыва"] = value
-                elif "Место призыва" in key:
-                    data["Место призыва"] = value
-                elif "Воинское звание" in key:
-                    data["Воинское звание"] = value
-                elif "Воинская часть" in key:
-                    data["Воинская часть"] = value
-                elif "Награды" in key:
-                    data["Награды"] = value
-                elif "Место выбытия" in key:
-                    data["Место выбытия"] = value
-                elif "Место захоронения" in key:
-                    data["Место захоронения"] = value
-            except Exception as inner_e:
-                print(f"Ошибка обработки детали '{detail.text}' на {url}: {inner_e}")
-        data["Биография"] = driver.find_element(By.CLASS_NAME, "hero-card__bio__item hide-class").text.strip()
+        details_list = driver.find_elements(By.XPATH, "//dl[@class='heroes_person_details_list']/dt")
+        for detail in details_list:
+            key = detail.text.strip()
+            value = detail.find_element(By.XPATH, "following-sibling::dd").text.strip()
+            if key in data:
+                data[key] = value
     except Exception as e:
-        print(f"Ошибка обработки деталей на {url}: {e}")
+        print(f"Ошибка парсинга основного блока деталей на {url}: {e}")
+
+    # Дополнительные поля (из раздела документов о плене и пр.)
+    try:
+        doc_info_items = driver.find_elements(By.CLASS_NAME, "hero-card-docs-item__info")
+        for item in doc_info_items:
+            try:
+                key_element = item.find_element(By.TAG_NAME, "b")
+                key = key_element.text.strip(": ")
+                value = item.text.replace(key_element.text, "").strip()
+                if key in data and not data[key]:  # Заполняем, только если поле еще не заполнено
+                    data[key] = value
+            except Exception as inner_e:
+                print(f"Ошибка получения элемента детальной информации на {url}: {inner_e}")
+    except Exception as e:
+        print(f"Ошибка получения данных из блока '.hero-card-docs-item__info' на {url}: {e}")
+
+    # Биография (если доступна)
+    try:
+        bio_elements = driver.find_elements(By.CLASS_NAME, "hero-card__bio__item")
+        bio_text = " ".join([el.text.strip() for el in bio_elements if el.text.strip()])
+        data["Биография"] = bio_text
+    except Exception as e:
+        print(f"Ошибка получения биографии на {url}: {e}")
+
+    # Информация об архиве (если доступна)
+    try:
+        archive_button = driver.find_element(By.CLASS_NAME, "hero-card-docs-item-archive-button")
+        driver.execute_script("arguments[0].click();", archive_button)
+        time.sleep(1)  # дать время раскрыться
+        archive_info_elements = driver.find_elements(By.CLASS_NAME, "hero-card-docs-item__info")
+        for element in archive_info_elements:
+            key_element = element.find_element(By.TAG_NAME, "b")
+            key = key_element.text.strip(": ")
+            value = element.text.replace(key_element.text, "").strip()
+            if key in data and not data[key]:
+                data[key] = value
+    except Exception as e:
+        print(f"Ошибка получения архивной информации на {url}: {e}")
 
     return data
 
@@ -263,7 +290,7 @@ for page in range(start_page, TOTAL_PAGES + 1):
         pf.write(str(page))
 
     # Сохраняем накопленные данные только каждые 100 страниц или если это последняя страница
-    if page % 100 == 0 or page == TOTAL_PAGES:
+    if page % 10 == 0 or page == TOTAL_PAGES:
         df = pd.DataFrame(all_data)
         df.to_excel(DATA_FILE, index=False)
         df_unique = df.drop_duplicates()
