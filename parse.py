@@ -95,22 +95,21 @@ else:
 # Если ранее были собраны данные, загружаем их
 if os.path.exists(DATA_FILE):
     all_data = pd.read_excel(DATA_FILE).to_dict(orient="records")
+    all_data_links = set(hero['Ссылка'] for hero in all_data)
 else:
-    all_data = []
+    all_data = []  # Создаем пустой список для данных
+    all_data_links = set()  # Создаем пустой сет для уникальности ссылок
 
 
-# Используем текущий список all_data для проверки уникальности
+# Используем текущий сет all_data_links для проверки уникальности
 def hero_already_in_data(short_url):
-    for hero in all_data:
-        if hero.get("Ссылка") == short_url:
-            return True
-    return False
+    return short_url in all_data_links
 
 
 # Функция для получения ссылок на страницы героев с указанной страницы списка
 def get_hero_links(page):
     url = (
-        f"{BASE_URL}?adv_search=y&poslednee_mesto_sluzhbi=158%20сд&group=all"
+        f"{BASE_URL}?lager=Шталаг%20337&group=all"
         "&types=pamyat_commander:nagrady_nagrad_doc:nagrady_uchet_kartoteka:"
         "nagrady_ubilein_kartoteka:pdv_kart_in:pdv_kart_in_inostranec:pamyat_voenkomat:"
         "potery_vpp:pamyat_zsp_parts:kld_ran:kld_bolezn:kld_polit:kld_upk:kld_vmf:"
@@ -121,13 +120,13 @@ def get_hero_links(page):
         f"&page={page}&grouppersons=1"
     )
 
-    # Ожидаем, что на странице появятся ссылки на героев
-    if not load_url(url, expected_locator=(By.XPATH, "//a[contains(@href, 'person-hero')]"), timeout=30, retry=5):
+    # Ожидаем, что на странице появятся ссылки с указанным классом
+    if not load_url(url, expected_locator=(By.CLASS_NAME, "heroes-list-item-name"), timeout=30, retry=5):
         return []
 
     hero_links = []
     try:
-        links = driver.find_elements(By.XPATH, "//a[contains(@href, 'person-hero')]")
+        links = driver.find_elements(By.CLASS_NAME, "heroes-list-item-name")
         for link in links:
             href = link.get_attribute("href")
             if href:
@@ -160,6 +159,7 @@ def parse_hero_page(url):
         "Награды": "",
         "Место выбытия": "",
         "Место захоронения": "",
+        "Биография": "",
         "Ссылка": short_url
     }
 
@@ -178,10 +178,10 @@ def parse_hero_page(url):
                     data["Дата рождения"] = value
                 elif "Место рождения" in key:
                     data["Место рождения"] = value
-                elif "Место призыва" in key:
-                    data["Место призыва"] = value
                 elif "Дата призыва" in key:
                     data["Дата призыва"] = value
+                elif "Место призыва" in key:
+                    data["Место призыва"] = value
                 elif "Воинское звание" in key:
                     data["Воинское звание"] = value
                 elif "Воинская часть" in key:
@@ -194,6 +194,7 @@ def parse_hero_page(url):
                     data["Место захоронения"] = value
             except Exception as inner_e:
                 print(f"Ошибка обработки детали '{detail.text}' на {url}: {inner_e}")
+        data["Биография"] = driver.find_element(By.CLASS_NAME, "hero-card__bio__item hide-class").text.strip()
     except Exception as e:
         print(f"Ошибка обработки деталей на {url}: {e}")
 
@@ -238,7 +239,7 @@ def attempt_failed_links():
         print("Все неудачные ссылки обработаны успешно.")
 
 
-TOTAL_PAGES = 3647  # общее число страниц
+TOTAL_PAGES = 93  # общее число страниц
 
 # Основной цикл парсинга
 for page in range(start_page, TOTAL_PAGES + 1):
@@ -255,6 +256,7 @@ for page in range(start_page, TOTAL_PAGES + 1):
             hero_data = parse_hero_page(hero_url)
             if hero_data:
                 all_data.append(hero_data)
+                all_data_links.add(hero_data['Ссылка'])
 
     # Обновляем номер последней обработанной страницы (малозатратная операция)
     with open(PROGRESS_FILE, "w") as pf:
