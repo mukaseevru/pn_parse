@@ -172,7 +172,8 @@ def parse_hero_page(url):
     }
 
     try:
-        data["ФИО"] = driver.find_element(By.CLASS_NAME, "hero-card-panel-head__name").text.strip()
+        fio_element = driver.find_element(By.CLASS_NAME, "hero-card-panel-head__name")
+        data["ФИО"] = fio_element.get_attribute('textContent').strip()
     except Exception as e:
         print(f"Ошибка получения ФИО на {url}: {e}")
 
